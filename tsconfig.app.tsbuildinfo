@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/components/Navbar.tsx","./src/components/SocialDashboard.tsx","./src/components/XConnection.tsx","./src/contexts/AuthContext.tsx","./src/pages/AppPage.tsx","./src/pages/LandingPage.tsx","./src/services/api.ts"],"version":"5.9.2"}
