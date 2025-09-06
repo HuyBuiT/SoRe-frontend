@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import LandingPage from './pages/LandingPage';
 import AppPage from './pages/AppPage';
 import TimeMarketplace from './pages/TimeMarketplace';
+import KOLDashboard from './pages/KOLDashboard';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Route path="/dashboard" element={<AppPage />} />
           <Route path="/marketplace" element={<TimeMarketplace />} />
           <Route path="/time" element={<TimeMarketplace />} />
+          <Route path="/kol-dashboard" element={<KOLDashboard />} />
         </Routes>
       </Router>
     </AuthProvider>

@@ -1,5 +1,5 @@
 // KOL Service for API calls
-const API_BASE_URL = 'http://localhost:3000/api';
+export const API_BASE_URL = 'http://localhost:3000/api';
 
 export interface KOL {
   id: string;

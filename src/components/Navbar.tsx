@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   LinkIcon, 
   Bars3Icon, 
@@ -14,7 +14,16 @@ import { useAuth } from '../contexts/AuthContext';
 
 const Navbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const location = useLocation();
   const { isConnected, walletAddress, connectWallet, disconnectWallet, loading, isCorrectNetwork, switchToSomnia } = useAuth();
+
+  // Helper function to determine if a path is active
+  const isActivePath = (path: string) => {
+    if (path === '/') {
+      return location.pathname === '/';
+    }
+    return location.pathname.startsWith(path);
+  };
 
   return (
     <nav className="relative bg-slate-900/90 backdrop-blur-sm">
@@ -51,29 +60,91 @@ const Navbar: React.FC = () => {
             <nav className="flex space-x-6">
               <Link 
                 to="/" 
-                className="flex items-center text-gray-300 hover:text-white transition-colors duration-200"
+                className={`flex items-center transition-all duration-300 relative group ${
+                  isActivePath('/') 
+                    ? 'text-white font-semibold scale-110' 
+                    : 'text-gray-400 hover:text-gray-200 opacity-70 hover:opacity-100'
+                }`}
               >
                 <HomeIcon className="w-5 h-5 mr-2" />
                 Home
+                {isActivePath('/') && (
+                  <motion.div
+                    layoutId="activeNavIndicator"
+                    className="absolute -bottom-2 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"
+                    initial={false}
+                    transition={{ duration: 0.3 }}
+                  />
+                )}
               </Link>
               <Link 
                 to="/marketplace" 
-                className="flex items-center text-purple-300 hover:text-purple-100 transition-colors duration-200 relative group"
+                className={`flex items-center transition-all duration-300 relative group ${
+                  isActivePath('/marketplace') 
+                    ? 'text-purple-200 font-bold scale-110' 
+                    : 'text-purple-400 hover:text-purple-200 opacity-70 hover:opacity-100'
+                }`}
               >
                 <ClockIcon className="w-5 h-5 mr-2" />
-                <span className="font-semibold">Time Marketplace</span>
-                <motion.div
-                  className="absolute -top-1 -right-1 w-2 h-2 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full"
-                  animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
+                <span>Time Marketplace</span>
+                {isActivePath('/marketplace') ? (
+                  <motion.div
+                    layoutId="activeNavIndicator"
+                    className="absolute -bottom-2 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                    initial={false}
+                    transition={{ duration: 0.3 }}
+                  />
+                ) : (
+                  <motion.div
+                    className="absolute -top-1 -right-1 w-2 h-2 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full opacity-60"
+                    animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.8, 0.4] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                )}
               </Link>
               <Link 
                 to="/app" 
-                className="flex items-center text-gray-300 hover:text-white transition-colors duration-200"
+                className={`flex items-center transition-all duration-300 relative group ${
+                  isActivePath('/app') 
+                    ? 'text-white font-semibold scale-110' 
+                    : 'text-gray-400 hover:text-gray-200 opacity-70 hover:opacity-100'
+                }`}
               >
                 <UserCircleIcon className="w-5 h-5 mr-2" />
                 Dashboard
+                {isActivePath('/app') && (
+                  <motion.div
+                    layoutId="activeNavIndicator"
+                    className="absolute -bottom-2 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"
+                    initial={false}
+                    transition={{ duration: 0.3 }}
+                  />
+                )}
+              </Link>
+              <Link 
+                to="/kol-dashboard" 
+                className={`flex items-center transition-all duration-300 relative group ${
+                  isActivePath('/kol-dashboard') 
+                    ? 'text-blue-200 font-bold scale-110' 
+                    : 'text-blue-400 hover:text-blue-200 opacity-70 hover:opacity-100'
+                }`}
+              >
+                <ClockIcon className="w-5 h-5 mr-2" />
+                <span>KOL Dashboard</span>
+                {isActivePath('/kol-dashboard') ? (
+                  <motion.div
+                    layoutId="activeNavIndicator"
+                    className="absolute -bottom-2 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full"
+                    initial={false}
+                    transition={{ duration: 0.3 }}
+                  />
+                ) : (
+                  <motion.div
+                    className="absolute -top-1 -right-1 w-2 h-2 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full opacity-60"
+                    animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.8, 0.4] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                )}
               </Link>
             </nav>
 

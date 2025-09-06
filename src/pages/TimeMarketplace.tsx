@@ -17,6 +17,7 @@ import {
 import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import { kolService, KOL, KOLResponse } from '../services/kolService';
+import { bookingService, CreateBookingRequest } from '../services/bookingService';
 
 // Use KOL interface from service
 type TimeSlot = KOL;
@@ -30,6 +31,8 @@ interface BookingModalProps {
   generateTimeOptions: () => string[];
   getLevelBg: (level: string) => string;
   isConnected: boolean;
+  onSubmitBooking: () => Promise<void>;
+  isSubmitting?: boolean;
 }
 
 const BookingModal = React.memo(({ 
@@ -39,7 +42,9 @@ const BookingModal = React.memo(({
   onBookingFormChange, 
   generateTimeOptions, 
   getLevelBg, 
-  isConnected 
+  isConnected,
+  onSubmitBooking,
+  isSubmitting = false
 }: BookingModalProps) => {
   if (!selectedSlot) return null;
 
@@ -60,14 +65,14 @@ const BookingModal = React.memo(({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
       onClick={handleBackdropClick}
     >
       <motion.div
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
-        className="bg-gradient-to-br from-slate-900 to-purple-900/30 border border-white/10 rounded-3xl p-8 max-w-2xl w-full relative"
+        className="bg-gradient-to-br from-slate-900 to-purple-900/30 border border-white/10 rounded-3xl p-6 max-w-2xl w-full relative my-8 max-h-[90vh] overflow-y-auto"
         onClick={handleModalClick}
       >
         {/* Close button */}
@@ -228,12 +233,15 @@ const BookingModal = React.memo(({
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            disabled={!isConnected || bookingForm.totalSlots < 1 || !bookingForm.date || !bookingForm.fromTime || !bookingForm.toTime || !bookingForm.reason.trim()}
+            onClick={onSubmitBooking}
+            disabled={!isConnected || bookingForm.totalSlots < 1 || !bookingForm.date || !bookingForm.fromTime || !bookingForm.toTime || !bookingForm.reason.trim() || isSubmitting}
             className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-2xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {!isConnected 
               ? 'Connect Wallet to Book' 
-              : `Book for ${bookingForm.totalPrice} SOMI`}
+              : isSubmitting 
+                ? 'Submitting...'
+                : `Book for ${bookingForm.totalPrice} SOMI`}
           </motion.button>
         </div>
       </motion.div>
@@ -265,6 +273,7 @@ const TimeMarketplace: React.FC = () => {
     totalSlots: 1,
     totalPrice: 0
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getLevelColor = (level: string) => {
     switch (level) {
@@ -335,6 +344,68 @@ const TimeMarketplace: React.FC = () => {
     
     setBookingForm(newForm);
   }, [bookingForm, selectedSlot]);
+
+  // Handle booking submission
+  const handleSubmitBooking = React.useCallback(async () => {
+    if (!selectedSlot || !isConnected || !walletAddress) {
+      alert('Please ensure you are connected to submit a booking');
+      return;
+    }
+
+    // Validate form
+    if (!bookingForm.date || !bookingForm.fromTime || !bookingForm.toTime || !bookingForm.reason.trim()) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    if (bookingForm.totalSlots < 1) {
+      alert('Minimum booking duration is 30 minutes');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      // Calculate duration in minutes
+      const durationMinutes = bookingForm.totalSlots * 30;
+      
+      const bookingData: CreateBookingRequest = {
+        kolId: selectedSlot.kol.id.toString(),
+        clientId: '1', // Mock client ID - in real app, get from auth context
+        bookingDate: bookingForm.date,
+        startTime: bookingForm.fromTime,
+        endTime: bookingForm.toTime,
+        reason: bookingForm.reason,
+        durationMinutes,
+        timezone: 'UTC'
+      };
+
+      const result = await bookingService.createBooking(bookingData);
+      
+      if (result.success) {
+        alert(`Booking request sent successfully! ${result.message}`);
+        
+        // Reset form and close modal
+        setBookingForm({
+          date: '',
+          fromTime: '',
+          toTime: '',
+          reason: '',
+          totalSlots: 1,
+          totalPrice: 0
+        });
+        setShowBookingModal(false);
+        setSelectedSlot(null);
+      } else {
+        alert('Failed to create booking request');
+      }
+    } catch (error: any) {
+      console.error('Booking submission error:', error);
+      alert(error.message || 'Failed to submit booking request');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [selectedSlot, isConnected, walletAddress, bookingForm]);
 
   // Fetch KOL data with sorting and filtering
   const fetchKOLs = async (page: number = 1, sortField: string = 'reputation', filterCategory: string = 'all') => {
@@ -668,6 +739,26 @@ const TimeMarketplace: React.FC = () => {
                     {slot.pricePerSlot} SOMI
                   </div>
                 </div>
+                
+                {/* KOL Price Setting - Show for KOL owners */}
+                <div className="mb-2">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // For demo purposes, using a simple prompt. In production, this would open a proper modal
+                      const newPrice = prompt(`Set your price per slot (current: ${slot.pricePerSlot} SOMI):`, slot.pricePerSlot.toString());
+                      if (newPrice && !isNaN(Number(newPrice)) && Number(newPrice) > 0) {
+                        alert(`Price would be updated to ${newPrice} SOMI (Backend integration needed)`);
+                      }
+                    }}
+                    className="text-xs bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-lg transition-all duration-200 flex items-center space-x-1"
+                  >
+                    <CurrencyDollarIcon className="w-3 h-3" />
+                    <span>Set My Price</span>
+                  </motion.button>
+                </div>
                 <p className="text-white text-sm line-clamp-2 mb-3">
                   {slot.description}
                 </p>
@@ -697,16 +788,33 @@ const TimeMarketplace: React.FC = () => {
                 </div>
               </div>
 
-              {/* Book Button */}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleBookSlot(slot)}
-                disabled={slot.availableSlots === 0}
-                className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-2xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25 disabled:opacity-50 disabled:cursor-not-allowed group-hover:shadow-lg"
-              >
-                {slot.availableSlots === 0 ? 'Fully Booked' : 'Book Session'}
-              </motion.button>
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                {/* Book Button */}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleBookSlot(slot)}
+                  disabled={slot.availableSlots === 0}
+                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-2xl hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25 disabled:opacity-50 disabled:cursor-not-allowed group-hover:shadow-lg"
+                >
+                  {slot.availableSlots === 0 ? 'Fully Booked' : 'Book Session'}
+                </motion.button>
+                
+                {/* KOL Dashboard Link */}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open('/kol-dashboard', '_blank');
+                  }}
+                  className="w-full py-2 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-gray-300 text-sm font-medium rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
+                >
+                  <span>📊</span>
+                  <span>Manage My Bookings</span>
+                </motion.button>
+              </div>
             </motion.div>
               ))
             )}
@@ -789,6 +897,8 @@ const TimeMarketplace: React.FC = () => {
             generateTimeOptions={generateTimeOptions}
             getLevelBg={getLevelBg}
             isConnected={isConnected}
+            onSubmitBooking={handleSubmitBooking}
+            isSubmitting={isSubmitting}
           />
         )}
       </AnimatePresence>
