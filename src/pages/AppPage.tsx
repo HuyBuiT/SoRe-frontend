@@ -45,23 +45,89 @@ const AppPage: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
-      {/* Animated Background Particles */}
+    <div className="min-h-screen bg-black relative">
+      {/* Dark Gradient Overlay */}
+      <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-black to-gray-900 opacity-90"></div>
+      
+      {/* Blockchain Grid Background */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,_rgba(59,130,246,0.1)_0%,_transparent_50%)]"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_75%,_rgba(147,51,234,0.1)_0%,_transparent_50%)]"></div>
+        <div className="absolute inset-0 opacity-20" 
+             style={{
+               backgroundImage: `linear-gradient(rgba(59,130,246,0.1) 1px, transparent 1px), 
+                                linear-gradient(90deg, rgba(59,130,246,0.1) 1px, transparent 1px)`,
+               backgroundSize: '50px 50px'
+             }}>
+        </div>
+      </div>
+
+      {/* Animated Blockchain Particles */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0">
-          {[...Array(15)].map((_, i) => (
+          {/* Floating Data Blocks */}
+          {[...Array(6)].map((_, i) => (
             <motion.div
-              key={i}
-              className="absolute w-2 h-2 bg-purple-500/20 rounded-full"
+              key={`block-${i}`}
+              className="absolute w-3 h-3 bg-blue-500/30 border border-blue-400/50 rounded-sm"
+              animate={{
+                x: [0, Math.random() * 300 - 150],
+                y: [0, Math.random() * 300 - 150],
+                rotate: [0, 360],
+                opacity: [0, 0.7, 0],
+              }}
+              transition={{
+                duration: Math.random() * 15 + 10,
+                repeat: Infinity,
+                delay: Math.random() * 8,
+                ease: "easeInOut"
+              }}
+              style={{
+                left: Math.random() * 100 + '%',
+                top: Math.random() * 100 + '%',
+              }}
+            />
+          ))}
+          
+          {/* Glowing Orbs */}
+          {[...Array(10)].map((_, i) => (
+            <motion.div
+              key={`orb-${i}`}
+              className="absolute w-2 h-2 bg-purple-400/40 rounded-full blur-sm"
+              animate={{
+                x: [0, Math.random() * 400 - 200],
+                y: [0, Math.random() * 400 - 200],
+                scale: [0.5, 1.5, 0.5],
+                opacity: [0.2, 0.8, 0.2],
+              }}
+              transition={{
+                duration: Math.random() * 12 + 8,
+                repeat: Infinity,
+                delay: Math.random() * 6,
+                ease: "easeInOut"
+              }}
+              style={{
+                left: Math.random() * 100 + '%',
+                top: Math.random() * 100 + '%',
+              }}
+            />
+          ))}
+          
+          {/* Moving Network Lines */}
+          {[...Array(4)].map((_, i) => (
+            <motion.div
+              key={`line-${i}`}
+              className="absolute w-px h-20 bg-gradient-to-b from-transparent via-cyan-400/30 to-transparent"
               animate={{
                 x: [0, Math.random() * 200 - 100],
                 y: [0, Math.random() * 200 - 100],
-                opacity: [0, 0.5, 0],
+                opacity: [0, 0.6, 0],
+                scaleY: [0.5, 1.5, 0.5],
               }}
               transition={{
-                duration: Math.random() * 8 + 4,
+                duration: Math.random() * 10 + 6,
                 repeat: Infinity,
-                delay: Math.random() * 5,
+                delay: Math.random() * 4,
                 ease: "easeInOut"
               }}
               style={{
