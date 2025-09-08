@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { toast } from 'react-toastify';
 import { apiService, XStatus } from '../services/api';
 
 interface AuthContextType {
@@ -75,7 +76,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Special handling for Nightly wallet conflict
       if (!window.ethereum.isMetaMask && !window.ethereum.providers) {
         console.error('Detected non-MetaMask wallet without providers array - likely Nightly conflict');
-        alert('🚨 Wallet Conflict Detected!\n\nIt looks like you have Nightly wallet installed, which is interfering with MetaMask.\n\nTo fix this:\n1. Go to your browser extensions (chrome://extensions/)\n2. DISABLE the Nightly extension\n3. Keep only MetaMask enabled\n4. Refresh this page\n5. Try connecting again\n\nNightly wallet is not compatible with this application.');
+        toast.error('🚨 Wallet Conflict Detected! Nightly wallet is interfering with MetaMask. Please disable Nightly extension and keep only MetaMask enabled.', { autoClose: 8000 });
         return;
       }
 
@@ -171,17 +172,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Handle different types of errors with specific messages
       if (error?.code === 4001) {
-        alert('Wallet connection was rejected by user. Please try again and approve the connection.');
+        toast.error('Wallet connection was rejected by user. Please try again and approve the connection.');
       } else if (errorString.includes('not initialized') || errorString.includes('Nightly')) {
-        alert('🚨 Nightly Wallet Conflict!\n\nNightly wallet is interfering with MetaMask. Please:\n\n1. Go to chrome://extensions/\n2. DISABLE Nightly wallet extension\n3. Keep only MetaMask enabled\n4. Refresh the page\n5. Try connecting again\n\nNightly is not compatible with this application.');
+        toast.error('🚨 Nightly Wallet Conflict! Please disable Nightly wallet extension and keep only MetaMask enabled.', { autoClose: 8000 });
       } else if (errorString.includes('User rejected')) {
-        alert('Connection request was rejected. Please try again and approve the connection in your wallet.');
+        toast.error('Connection request was rejected. Please try again and approve the connection in your wallet.');
       } else if (error?.code === -32002) {
-        alert('MetaMask is already processing a request. Please check your MetaMask popup or wait a moment before trying again.');
+        toast.error('MetaMask is already processing a request. Please check your MetaMask popup or wait a moment before trying again.');
       } else if (errorString.includes('does not support')) {
-        alert('The selected wallet does not support required features. Please make sure you have MetaMask installed and enabled.');
+        toast.error('The selected wallet does not support required features. Please make sure you have MetaMask installed and enabled.');
       } else {
-        alert(`Failed to connect wallet: ${errorMessage}\n\nPlease make sure:\n- MetaMask is installed and unlocked\n- No other wallet extensions are enabled\n- You approve the connection request`);
+        toast.error(`Failed to connect wallet: ${errorMessage}. Please make sure MetaMask is installed, unlocked, and you approve the connection request.`, { autoClose: 5000 });
       }
     } finally {
       setLoading(false);
@@ -230,15 +231,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setChainId(SOMNIA_TESTNET.chainId);
         } catch (addError: any) {
           console.error('Failed to add Somnia Testnet:', addError);
-          alert(`Failed to add Somnia Testnet to your wallet: ${addError.message || 'Unknown error'}`);
+          toast.error(`Failed to add Somnia Testnet to your wallet: ${addError.message || 'Unknown error'}`);
           throw addError;
         }
       } else if (switchError.code === 4001) {
-        alert('Network switch was rejected by user. Please manually switch to Somnia Testnet in your wallet.');
+        toast.error('Network switch was rejected by user. Please manually switch to Somnia Testnet in your wallet.');
         throw switchError;
       } else {
         console.error('Failed to switch to Somnia Testnet:', switchError);
-        alert(`Failed to switch network: ${switchError.message || 'Unknown error'}`);
+        toast.error(`Failed to switch network: ${switchError.message || 'Unknown error'}`);
         throw switchError;
       }
     }
@@ -370,7 +371,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (error) {
       console.error('OAuth error:', error);
-      alert('Failed to connect X account. Please try again.');
+      toast.error('Failed to connect X account. Please try again.');
       
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);

@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-toastify';
 import { 
   ClockIcon,
   StarIcon,
   CurrencyDollarIcon,
-  CalendarDaysIcon,
   UserGroupIcon,
-  ChatBubbleLeftRightIcon,
-  FireIcon,
   TrophyIcon,
   CheckCircleIcon,
   XMarkIcon,
@@ -18,6 +16,8 @@ import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import { kolService, KOL, KOLResponse } from '../services/kolService';
 import { bookingService, CreateBookingRequest } from '../services/bookingService';
+import { web3Service } from '../services/web3Service';
+import { BecomeKOLModal, KOLRegistrationData } from '../components/BecomeKOLModal';
 
 // Use KOL interface from service
 type TimeSlot = KOL;
@@ -274,15 +274,9 @@ const TimeMarketplace: React.FC = () => {
     totalPrice: 0
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case 'Diamond': return 'from-cyan-400 to-blue-400';
-      case 'Gold': return 'from-yellow-400 to-orange-400';
-      case 'Silver': return 'from-gray-300 to-gray-500';
-      default: return 'from-orange-400 to-red-400';
-    }
-  };
+  
+  // KOL Registration Modal state
+  const [showKOLModal, setShowKOLModal] = useState(false);
 
   const getLevelBg = React.useCallback((level: string) => {
     switch (level) {
@@ -345,45 +339,100 @@ const TimeMarketplace: React.FC = () => {
     setBookingForm(newForm);
   }, [bookingForm, selectedSlot]);
 
-  // Handle booking submission
+  // Handle booking submission with blockchain
   const handleSubmitBooking = React.useCallback(async () => {
     if (!selectedSlot || !isConnected || !walletAddress) {
-      alert('Please ensure you are connected to submit a booking');
+      toast.error('Please connect your wallet to submit a booking');
       return;
     }
 
     // Validate form
     if (!bookingForm.date || !bookingForm.fromTime || !bookingForm.toTime || !bookingForm.reason.trim()) {
-      alert('Please fill in all required fields');
+      toast.error('Please fill in all required fields');
       return;
     }
 
     if (bookingForm.totalSlots < 1) {
-      alert('Minimum booking duration is 30 minutes');
+      toast.error('Minimum booking duration is 30 minutes');
       return;
     }
 
     setIsSubmitting(true);
     
     try {
-      // Calculate duration in minutes
-      const durationMinutes = bookingForm.totalSlots * 30;
+      // Initialize web3 service and check network
+      await web3Service.initialize();
       
-      const bookingData: CreateBookingRequest = {
-        kolId: selectedSlot.kol.id.toString(),
-        clientId: '1', // Mock client ID - in real app, get from auth context
-        bookingDate: bookingForm.date,
-        startTime: bookingForm.fromTime,
-        endTime: bookingForm.toTime,
-        reason: bookingForm.reason,
-        durationMinutes,
-        timezone: 'UTC'
-      };
+      const isCorrectNetwork = await web3Service.checkNetwork();
+      if (!isCorrectNetwork) {
+        const switched = await web3Service.switchToSomniaTestnet();
+        if (!switched) {
+          toast.error('Please switch to Somnia testnet to create bookings');
+          setIsSubmitting(false);
+          return;
+        }
+      }
 
-      const result = await bookingService.createBooking(bookingData);
+      // Convert date and time to Unix timestamp
+      const bookingDateTime = new Date(`${bookingForm.date}T${bookingForm.fromTime}:00Z`);
+      const endDateTime = new Date(`${bookingForm.date}T${bookingForm.toTime}:00Z`);
+      
+      const fromTimestamp = Math.floor(bookingDateTime.getTime() / 1000);
+      const toTimestamp = Math.floor(endDateTime.getTime() / 1000);
+
+      // Get KOL wallet address
+      const kolAddress = selectedSlot.kol.walletAddress;
+      if (!kolAddress) {
+        toast.error('❌ KOL wallet address not configured. Please try another KOL.');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Create booking on blockchain
+      const result = await web3Service.createBooking(
+        kolAddress,
+        selectedSlot.pricePerSlot.toString(),
+        bookingForm.totalSlots,
+        fromTimestamp,
+        toTimestamp,
+        bookingForm.reason
+      );
       
       if (result.success) {
-        alert(`Booking request sent successfully! ${result.message}`);
+        // Save booking to backend database
+        try {
+          // Calculate duration in minutes
+          const startTime = new Date(`${bookingForm.date}T${bookingForm.fromTime}:00`);
+          const endTime = new Date(`${bookingForm.date}T${bookingForm.toTime}:00`);
+          const durationMinutes = Math.floor((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+          
+          const bookingData: CreateBookingRequest = {
+            kolId: selectedSlot.id, // Use the KOL ID from the slot
+            clientId: walletAddress || '', // Use wallet address as client ID for now
+            bookingDate: bookingForm.date,
+            startTime: bookingForm.fromTime,
+            endTime: bookingForm.toTime,
+            reason: bookingForm.reason,
+            durationMinutes: durationMinutes,
+            timezone: 'UTC'
+          };
+          
+          const backendResult = await bookingService.createBooking(bookingData);
+          console.log('Backend booking created:', backendResult);
+        } catch (backendError) {
+          console.error('Failed to save booking to backend:', backendError);
+          // Don't fail the whole process if backend fails
+          toast.warn('Booking created on blockchain but failed to sync with backend. Please contact support.');
+        }
+        
+        toast.success(
+          `🎉 Booking created successfully!\n\n` +
+          `📋 Transaction Hash: ${result.txHash}\n` +
+          `🎫 Booking ID: ${result.bookingId}\n` +
+          `🏆 NFT Token ID: ${result.tokenId}\n\n` +
+          `Your booking is now pending. The KOL has 5 days to accept or it will be auto-refunded.`,
+          { autoClose: 8000 }
+        );
         
         // Reset form and close modal
         setBookingForm({
@@ -397,31 +446,97 @@ const TimeMarketplace: React.FC = () => {
         setShowBookingModal(false);
         setSelectedSlot(null);
       } else {
-        alert('Failed to create booking request');
+        toast.error(`❌ Booking failed: ${result.error}. Please check your wallet connection and try again.`);
       }
     } catch (error: any) {
-      console.error('Booking submission error:', error);
-      alert(error.message || 'Failed to submit booking request');
+      console.error('Blockchain booking error:', error);
+      toast.error(`⚠️ Transaction failed: ${error.message || 'Unknown error'}. Please ensure you have enough SOMI tokens and try again.`);
     } finally {
       setIsSubmitting(false);
     }
   }, [selectedSlot, isConnected, walletAddress, bookingForm]);
 
-  // Fetch KOL data with sorting and filtering
+  // Fetch KOL data with sorting and filtering (now includes reputation)
   const fetchKOLs = async (page: number = 1, sortField: string = 'reputation', filterCategory: string = 'all') => {
     setLoading(true);
     try {
-      const response: KOLResponse = await kolService.getKOLs(page, itemsPerPage, sortField, filterCategory);
+      // Use the reputation-enabled service to get KOLs with blockchain data
+      const response: KOLResponse = await kolService.getKOLsWithReputation(page, itemsPerPage, sortField, filterCategory);
       setKolData(response.data);
       setCurrentPage(response.pagination.current_page);
       setTotalPages(response.pagination.total_pages);
       setTotalItems(response.pagination.total_items);
     } catch (error) {
-      console.error('Failed to fetch KOLs:', error);
+      console.error('Failed to fetch KOLs with reputation:', error);
+      // Fallback to regular KOL service if reputation fails
+      try {
+        const response: KOLResponse = await kolService.getKOLs(page, itemsPerPage, sortField, filterCategory);
+        setKolData(response.data);
+        setCurrentPage(response.pagination.current_page);
+        setTotalPages(response.pagination.total_pages);
+        setTotalItems(response.pagination.total_items);
+      } catch (fallbackError) {
+        console.error('Failed to fetch KOLs:', fallbackError);
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  // Handle KOL registration with full form data
+  const handleKOLRegistration = React.useCallback(async (kolData: KOLRegistrationData) => {
+    if (!isConnected || !walletAddress) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      // Check and switch to correct network first
+      await web3Service.initialize();
+      const isCorrectNetwork = await web3Service.checkNetwork();
+      if (!isCorrectNetwork) {
+        const switched = await web3Service.switchToSomniaTestnet();
+        if (!switched) {
+          toast.error('Please switch to Somnia testnet to become a KOL');
+          return;
+        }
+      }
+
+      // First mint the reputation NFT
+      const result = await kolService.initializeKOLReputation(walletAddress, true);
+      if (!result.success) {
+        toast.error(`❌ ${result.error || 'Failed to mint reputation NFT'}`);
+        return;
+      }
+
+      // Then register with full profile data
+      const profileResult = await kolService.registerKOLWithProfile(walletAddress, kolData);
+      if (profileResult.success) {
+        const nftAddress = import.meta.env.VITE_REPUTATION_NFT_CONTRACT_ADDRESS;
+        const explorerUrl = `https://explorer.somnia.network/tx/${result.txHash}`;
+        
+        let message = `🎉 SUCCESS! KOL Registration Complete!\n\n`;
+        message += `✅ Reputation NFT minted successfully!\n`;
+        message += `🏆 Your profile is now live in the marketplace\n\n`;
+        message += `📋 Transaction Details:\n`;
+        message += `• TX Hash: ${result.txHash}\n`;
+        message += `• NFT Contract: ${nftAddress}\n`;
+        if (result.tokenId) {
+          message += `• Token ID: #${result.tokenId}\n`;
+        }
+        message += `\n🔗 View on Explorer: ${explorerUrl}`;
+        
+        toast.success(message, { autoClose: 8000 });
+        fetchKOLs(currentPage, sortBy, filter); // Refresh data
+      } else {
+        toast.error(`❌ Failed to register KOL profile. ${profileResult.error || 'NFT was minted but profile creation failed.'}`);
+      }
+    } catch (error) {
+      console.error('Error in KOL registration:', error);
+      toast.error('❌ Error: ' + (error.message || 'Unknown error occurred'));
+    }
+  }, [isConnected, walletAddress, currentPage, sortBy, filter, fetchKOLs]);
+
 
   // Handle page change with animation
   const handlePageChange = (newPage: number) => {
@@ -442,6 +557,56 @@ const TimeMarketplace: React.FC = () => {
     setSortBy(newSort);
     setCurrentPage(1); // Reset to first page
     fetchKOLs(1, newSort, filter);
+  };
+
+  // Handle pricing update
+  const handlePricingUpdate = async (kolId: string, currentPrice: number) => {
+    console.log(`🎯 handlePricingUpdate called for KOL ${kolId}, current price: ${currentPrice}`);
+    
+    const newPriceStr = prompt(`Set your price per slot (current: ${currentPrice} SOMI):`, currentPrice.toString());
+    
+    if (!newPriceStr || newPriceStr.trim() === '') {
+      console.log('❌ User cancelled or empty input');
+      return; // User cancelled or empty input
+    }
+    
+    const newPrice = Number(newPriceStr);
+    
+    if (isNaN(newPrice) || newPrice <= 0) {
+      console.log('❌ Invalid price entered:', newPriceStr);
+      toast.error('Please enter a valid price greater than 0');
+      return;
+    }
+    
+    console.log(`✅ Valid price entered: ${newPrice}, proceeding with update`);
+    
+    try {
+      console.log('🔄 Setting loading state to true');
+      setLoading(true);
+      
+      console.log('📞 Calling kolService.updateKOLPricing...');
+      const result = await kolService.updateKOLPricing(kolId, newPrice);
+      
+      console.log('📋 kolService.updateKOLPricing result:', result);
+      
+      if (result.success) {
+        toast.success(`Price updated successfully to ${newPrice} SOMI!`);
+        
+        console.log('🔄 Refreshing KOL data...');
+        // Refresh the KOL data to show updated price
+        await fetchKOLs(currentPage, sortBy, filter);
+        console.log('✅ KOL data refreshed');
+      } else {
+        console.error('❌ Update failed:', result.error);
+        toast.error(`Failed to update price: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('💥 Exception in handlePricingUpdate:', error);
+      toast.error('Failed to update price. Please try again.');
+    } finally {
+      console.log('🔄 Setting loading state to false');
+      setLoading(false);
+    }
   };
 
   // Load KOLs on component mount
@@ -587,6 +752,28 @@ const TimeMarketplace: React.FC = () => {
             Book one-on-one sessions with top KOLs. Get personalized advice, strategies, and insights directly from industry experts.
           </p>
 
+          {/* Global Become KOL Button */}
+          {isConnected && walletAddress && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="mb-8"
+            >
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowKOLModal(true)}
+                className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-2xl shadow-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:shadow-green-500/25"
+              >
+                🚀 Become a KOL & Start Earning
+              </motion.button>
+              <p className="text-gray-300 text-sm mt-3">
+                Connect your wallet and mint a reputation NFT to join as a verified KOL
+              </p>
+            </motion.div>
+          )}
+
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-2xl mx-auto">
             {[
@@ -724,8 +911,44 @@ const TimeMarketplace: React.FC = () => {
                 <div className="flex items-center text-sm text-white">
                   <TrophyIcon className="w-4 h-4 mr-1 text-purple-400" />
                   {slot.kol.reputation} points
+                  {slot.kol.reputationData && (
+                    <span className="ml-1 px-1 py-0.5 bg-green-500/20 border border-green-500/30 text-green-400 text-xs rounded">
+                      ⚡ On-chain
+                    </span>
+                  )}
                 </div>
               </div>
+
+              {/* On-chain Reputation Details */}
+              {slot.kol.reputationData && (
+                <div className="mb-4 p-3 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl">
+                  <h4 className="text-xs font-semibold text-blue-300 mb-2 flex items-center">
+                    🔗 Blockchain Reputation
+                  </h4>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="text-center">
+                      <div className="text-blue-400 font-medium">{slot.kol.reputationData.onchainScore}</div>
+                      <div className="text-gray-400">On-chain</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-purple-400 font-medium">{slot.kol.reputationData.socialScore}</div>
+                      <div className="text-gray-400">Social</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-green-400 font-medium">{slot.kol.reputationData.tokenHoldingScore}</div>
+                      <div className="text-gray-400">Holdings</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-center">
+                    <div className="text-sm font-bold text-cyan-400">
+                      Total: {slot.kol.reputationData.totalScore}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Last updated: {new Date(slot.kol.reputationData.lastUpdated * 1000).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Session Info */}
               <div className="mb-4">
@@ -740,25 +963,24 @@ const TimeMarketplace: React.FC = () => {
                   </div>
                 </div>
                 
-                {/* KOL Price Setting - Show for KOL owners */}
-                <div className="mb-2">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // For demo purposes, using a simple prompt. In production, this would open a proper modal
-                      const newPrice = prompt(`Set your price per slot (current: ${slot.pricePerSlot} SOMI):`, slot.pricePerSlot.toString());
-                      if (newPrice && !isNaN(Number(newPrice)) && Number(newPrice) > 0) {
-                        alert(`Price would be updated to ${newPrice} SOMI (Backend integration needed)`);
-                      }
-                    }}
-                    className="text-xs bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-lg transition-all duration-200 flex items-center space-x-1"
-                  >
-                    <CurrencyDollarIcon className="w-3 h-3" />
-                    <span>Set My Price</span>
-                  </motion.button>
-                </div>
+                {/* KOL Price Setting - Show only for user's own KOL card */}
+                {isConnected && walletAddress && slot.kol.walletAddress === walletAddress && (
+                  <div className="mb-2">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePricingUpdate(slot.id, slot.pricePerSlot);
+                      }}
+                      disabled={loading}
+                      className="text-xs bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 px-3 py-1 rounded-lg transition-all duration-200 flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <CurrencyDollarIcon className="w-3 h-3" />
+                      <span>{loading ? 'Updating...' : 'Set My Price'}</span>
+                    </motion.button>
+                  </div>
+                )}
                 <p className="text-white text-sm line-clamp-2 mb-3">
                   {slot.description}
                 </p>
@@ -800,20 +1022,22 @@ const TimeMarketplace: React.FC = () => {
                 >
                   {slot.availableSlots === 0 ? 'Fully Booked' : 'Book Session'}
                 </motion.button>
-                
-                {/* KOL Dashboard Link */}
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.open('/kol-dashboard', '_blank');
-                  }}
-                  className="w-full py-2 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-gray-300 text-sm font-medium rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
-                >
-                  <span>📊</span>
-                  <span>Manage My Bookings</span>
-                </motion.button>
+
+                {/* KOL Dashboard Link - Show only for user's own KOL card */}
+                {isConnected && walletAddress && slot.kol.walletAddress === walletAddress && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open('/kol-dashboard', '_blank');
+                    }}
+                    className="w-full py-2 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-gray-300 text-sm font-medium rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
+                  >
+                    <span>📊</span>
+                    <span>Manage My Bookings</span>
+                  </motion.button>
+                )}
               </div>
             </motion.div>
               ))
@@ -902,6 +1126,14 @@ const TimeMarketplace: React.FC = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* KOL Registration Modal */}
+      <BecomeKOLModal
+        isOpen={showKOLModal}
+        onClose={() => setShowKOLModal(false)}
+        walletAddress={walletAddress || ''}
+        onSubmit={handleKOLRegistration}
+      />
     </div>
   );
 };

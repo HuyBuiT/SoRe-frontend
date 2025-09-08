@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
 
 const XConnection: React.FC = () => {
@@ -7,7 +8,7 @@ const XConnection: React.FC = () => {
 
   const handleConnect = async () => {
     if (!isConnected) {
-      alert('Please connect your wallet first');
+      toast.error('Please connect your wallet first');
       return;
     }
 
@@ -16,7 +17,7 @@ const XConnection: React.FC = () => {
       await connectX();
     } catch (error) {
       console.error('Failed to connect X:', error);
-      alert('Failed to connect X account. Please try again.');
+      toast.error('Failed to connect X account. Please try again.');
     } finally {
       setActionLoading(false);
     }
@@ -28,7 +29,7 @@ const XConnection: React.FC = () => {
       await disconnectX();
     } catch (error) {
       console.error('Failed to disconnect X:', error);
-      alert('Failed to disconnect X account. Please try again.');
+      toast.error('Failed to disconnect X account. Please try again.');
     } finally {
       setActionLoading(false);
     }

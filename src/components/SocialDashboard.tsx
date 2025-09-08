@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-toastify';
 import { 
   UsersIcon, 
   DocumentTextIcon, 
@@ -59,7 +60,7 @@ const SocialDashboard: React.FC = () => {
       await fetchData();
     } catch (error) {
       console.error('Failed to refresh stats:', error);
-      alert('Failed to refresh social stats. Please try again.');
+      toast.error('Failed to refresh social stats. Please try again.');
     } finally {
       setRefreshing(false);
     }

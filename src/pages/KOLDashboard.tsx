@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaBell, FaClock, FaMoneyBillWave, FaCog, FaCheck, FaTimes, FaEye } from 'react-icons/fa';
-import { bookingService, Booking, UpdateBookingStatusRequest, KOLPricingUpdate } from '../services/bookingService';
+import { toast } from 'react-toastify';
+import { FaBell, FaClock, FaMoneyBillWave, FaCheck, FaTimes, FaEye } from 'react-icons/fa';
+import { bookingService, Booking, UpdateBookingStatusRequest } from '../services/bookingService';
+import { kolService } from '../services/kolService';
+import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
-
-// Mock KOL ID - in a real app, this would come from auth context
-const CURRENT_KOL_ID = '1';
 
 const BookingCard: React.FC<{ booking: Booking; onStatusUpdate: (bookingId: number, status: UpdateBookingStatusRequest) => void }> = ({ booking, onStatusUpdate }) => {
   const [showDetails, setShowDetails] = useState(false);
@@ -132,140 +132,69 @@ const BookingCard: React.FC<{ booking: Booking; onStatusUpdate: (bookingId: numb
   );
 };
 
-const PricingSettings: React.FC<{ onPricingUpdate: (pricing: KOLPricingUpdate) => void }> = ({ onPricingUpdate }) => {
-  const [pricingForm, setPricingForm] = useState({
-    pricePerSlot: 50,
-    hourlyRate: 100,
-    isAvailable: true,
-    minBookingDuration: 30,
-    maxBookingDuration: 240,
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onPricingUpdate(pricingForm);
-  };
-
-  return (
-    <motion.div
-      className="bg-gray-800 border border-gray-700 rounded-xl p-6"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
-      <h3 className="text-xl font-bold text-white mb-6 flex items-center space-x-2">
-        <FaCog className="w-5 h-5" />
-        <span>Pricing Settings</span>
-      </h3>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Price per Slot ($)
-            </label>
-            <input
-              type="number"
-              value={pricingForm.pricePerSlot}
-              onChange={(e) => setPricingForm(prev => ({ ...prev, pricePerSlot: Number(e.target.value) }))}
-              className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-              min="1"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Hourly Rate ($)
-            </label>
-            <input
-              type="number"
-              value={pricingForm.hourlyRate}
-              onChange={(e) => setPricingForm(prev => ({ ...prev, hourlyRate: Number(e.target.value) }))}
-              className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-              min="1"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Min Duration (minutes)
-            </label>
-            <input
-              type="number"
-              value={pricingForm.minBookingDuration}
-              onChange={(e) => setPricingForm(prev => ({ ...prev, minBookingDuration: Number(e.target.value) }))}
-              className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-              min="15"
-              step="15"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Max Duration (minutes)
-            </label>
-            <input
-              type="number"
-              value={pricingForm.maxBookingDuration}
-              onChange={(e) => setPricingForm(prev => ({ ...prev, maxBookingDuration: Number(e.target.value) }))}
-              className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-              min="30"
-              step="15"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          <input
-            type="checkbox"
-            id="isAvailable"
-            checked={pricingForm.isAvailable}
-            onChange={(e) => setPricingForm(prev => ({ ...prev, isAvailable: e.target.checked }))}
-            className="w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500"
-          />
-          <label htmlFor="isAvailable" className="text-gray-300">
-            Available for bookings
-          </label>
-        </div>
-
-        <button
-          type="submit"
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-        >
-          Update Pricing
-        </button>
-      </form>
-    </motion.div>
-  );
-};
 
 export const KOLDashboard: React.FC = () => {
+  const { walletAddress, isConnected } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'pending' | 'all' | 'pricing'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
+  const [currentKolId, setCurrentKolId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadBookings();
-    loadPendingCount();
-  }, []);
+    if (isConnected && walletAddress) {
+      findKolIdByWallet();
+    }
+  }, [isConnected, walletAddress]);
+
+  useEffect(() => {
+    if (currentKolId) {
+      loadBookings();
+      loadPendingCount();
+    }
+  }, [currentKolId]);
+
+  const findKolIdByWallet = async () => {
+    try {
+      const response = await kolService.getKOLs(1, 100, 'reputation', 'all');
+      const currentKol = response.data.find(kol => 
+        kol.kol.walletAddress?.toLowerCase() === walletAddress?.toLowerCase()
+      );
+      
+      if (currentKol) {
+        setCurrentKolId(currentKol.id);
+      } else {
+        toast.error('KOL profile not found for this wallet address');
+      }
+    } catch (error) {
+      console.error('Error finding KOL by wallet:', error);
+      toast.error('Failed to load KOL profile');
+    }
+  };
 
   const loadBookings = async () => {
+    if (!currentKolId) return;
+    
     try {
-      const { bookings } = await bookingService.getKOLBookings(CURRENT_KOL_ID);
+      const { bookings } = await bookingService.getKOLBookings(currentKolId);
       setBookings(bookings);
     } catch (error) {
       console.error('Error loading bookings:', error);
+      toast.error('Failed to load bookings');
     } finally {
       setLoading(false);
     }
   };
 
   const loadPendingCount = async () => {
+    if (!currentKolId) return;
+    
     try {
-      const { count } = await bookingService.getPendingBookings(CURRENT_KOL_ID);
+      const { count } = await bookingService.getPendingBookings(currentKolId);
       setPendingCount(count);
     } catch (error) {
       console.error('Error loading pending count:', error);
+      toast.error('Failed to load pending bookings count');
     }
   };
 
@@ -279,15 +208,6 @@ export const KOLDashboard: React.FC = () => {
     }
   };
 
-  const handlePricingUpdate = async (pricingData: KOLPricingUpdate) => {
-    try {
-      await bookingService.updateKOLPricing(CURRENT_KOL_ID, pricingData);
-      alert('Pricing updated successfully!');
-    } catch (error) {
-      console.error('Error updating pricing:', error);
-      alert('Failed to update pricing');
-    }
-  };
 
   const pendingBookings = bookings.filter(b => b.status === 'pending');
   const acceptedBookings = bookings.filter(b => b.status === 'accepted');
@@ -370,8 +290,7 @@ export const KOLDashboard: React.FC = () => {
         <div className="flex space-x-4 mb-6">
           {[
             { id: 'pending' as const, label: 'Pending Requests', count: pendingCount },
-            { id: 'all' as const, label: 'All Bookings', count: bookings.length },
-            { id: 'pricing' as const, label: 'Pricing Settings', count: null }
+            { id: 'all' as const, label: 'All Bookings', count: bookings.length }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -448,18 +367,6 @@ export const KOLDashboard: React.FC = () => {
             </motion.div>
           )}
 
-          {activeTab === 'pricing' && (
-            <motion.div
-              key="pricing"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <div className="max-w-2xl">
-                <PricingSettings onPricingUpdate={handlePricingUpdate} />
-              </div>
-            </motion.div>
-          )}
         </AnimatePresence>
       </div>
     </div>
