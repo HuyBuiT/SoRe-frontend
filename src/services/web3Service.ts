@@ -387,22 +387,42 @@ class Web3Service {
     }
   }
 
-  // Generate simple NFT metadata
+  // Generate NFT metadata with dynamic image
   private generateTokenURI(kolAddress: string, fromTime: number, toTime: number, reason: string): string {
+    const ticketNumber = Date.now();
+    const sessionDate = new Date(fromTime * 1000).toLocaleDateString();
+    const sessionTime = new Date(fromTime * 1000).toLocaleTimeString('en-US', { 
+      hour12: false, 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    const duration = Math.floor((toTime - fromTime) / 60);
+    const shortAddress = `${kolAddress.slice(0, 6)}...${kolAddress.slice(-4)}`;
+    
+    // Generate dynamic booking ticket image using DiceBear API for avatars and ticket design
+    // Create a unique seed based on booking details for consistent image generation
+    const imageSeed = `${kolAddress}-${ticketNumber}-${duration}`;
+    const imageUrl = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(imageSeed)}&backgroundColor=4f46e5,7c3aed,ec4899&size=400`;
+    
     const metadata = {
-      name: `SoRe Booking Ticket #${Date.now()}`,
-      description: `Time booking session: ${reason}`,
-      image: "https://example.com/ticket-image.png", // Replace with actual image
+      name: `SoRe Booking Ticket #${ticketNumber}`,
+      description: `Booking session with KOL ${shortAddress} on ${sessionDate} at ${sessionTime}. Duration: ${duration} minutes. Reason: ${reason}`,
+      image: imageUrl,
+      external_url: "https://sore-platform.com",
+      background_color: "4F46E5",
       attributes: [
-        { trait_type: "KOL", value: kolAddress },
-        { trait_type: "Session Time", value: new Date(fromTime * 1000).toISOString() },
-        { trait_type: "Duration", value: `${(toTime - fromTime) / 60} minutes` },
-        { trait_type: "Reason", value: reason }
+        { trait_type: "Ticket Number", value: ticketNumber.toString() },
+        { trait_type: "KOL Address", value: kolAddress },
+        { trait_type: "Session Date", value: sessionDate },
+        { trait_type: "Session Time", value: sessionTime },
+        { trait_type: "Duration (minutes)", value: duration },
+        { trait_type: "Booking Reason", value: reason },
+        { trait_type: "Status", value: "Pending" },
+        { trait_type: "Platform", value: "SoRe" }
       ]
     };
 
-    // In a real implementation, you'd upload this to IPFS
-    // For demo, return a data URL
+    // Return data URL with properly formatted JSON metadata
     return `data:application/json,${encodeURIComponent(JSON.stringify(metadata))}`;
   }
 

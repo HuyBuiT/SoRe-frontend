@@ -18,6 +18,7 @@ import { kolService, KOL, KOLResponse } from '../services/kolService';
 import { bookingService, CreateBookingRequest } from '../services/bookingService';
 import { web3Service } from '../services/web3Service';
 import { BecomeKOLModal, KOLRegistrationData } from '../components/BecomeKOLModal';
+import SetPriceModal from '../components/SetPriceModal';
 
 // Use KOL interface from service
 type TimeSlot = KOL;
@@ -277,6 +278,9 @@ const TimeMarketplace: React.FC = () => {
   
   // KOL Registration Modal state
   const [showKOLModal, setShowKOLModal] = useState(false);
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [selectedKOLForPricing, setSelectedKOLForPricing] = useState<{ id: string; currentPrice: number } | null>(null);
+  const [isPriceUpdating, setIsPriceUpdating] = useState(false);
 
   const getLevelBg = React.useCallback((level: string) => {
     switch (level) {
@@ -559,30 +563,22 @@ const TimeMarketplace: React.FC = () => {
     fetchKOLs(1, newSort, filter);
   };
 
-  // Handle pricing update
-  const handlePricingUpdate = async (kolId: string, currentPrice: number) => {
+  // Handle pricing update - open modal
+  const handlePricingUpdate = (kolId: string, currentPrice: number) => {
     console.log(`🎯 handlePricingUpdate called for KOL ${kolId}, current price: ${currentPrice}`);
+    setSelectedKOLForPricing({ id: kolId, currentPrice });
+    setShowPriceModal(true);
+  };
+
+  // Handle price save from modal
+  const handlePriceSave = async (newPrice: number) => {
+    if (!selectedKOLForPricing) return;
     
-    const newPriceStr = prompt(`Set your price per slot (current: ${currentPrice} SOMI):`, currentPrice.toString());
-    
-    if (!newPriceStr || newPriceStr.trim() === '') {
-      console.log('❌ User cancelled or empty input');
-      return; // User cancelled or empty input
-    }
-    
-    const newPrice = Number(newPriceStr);
-    
-    if (isNaN(newPrice) || newPrice <= 0) {
-      console.log('❌ Invalid price entered:', newPriceStr);
-      toast.error('Please enter a valid price greater than 0');
-      return;
-    }
-    
-    console.log(`✅ Valid price entered: ${newPrice}, proceeding with update`);
+    const { id: kolId } = selectedKOLForPricing;
+    console.log(`✅ Saving new price: ${newPrice} for KOL ${kolId}`);
     
     try {
-      console.log('🔄 Setting loading state to true');
-      setLoading(true);
+      setIsPriceUpdating(true);
       
       console.log('📞 Calling kolService.updateKOLPricing...');
       const result = await kolService.updateKOLPricing(kolId, newPrice);
@@ -590,23 +586,32 @@ const TimeMarketplace: React.FC = () => {
       console.log('📋 kolService.updateKOLPricing result:', result);
       
       if (result.success) {
-        toast.success(`Price updated successfully to ${newPrice} SOMI!`);
+        toast.success(`Price updated successfully to ${newPrice} STT!`);
         
         console.log('🔄 Refreshing KOL data...');
         // Refresh the KOL data to show updated price
         await fetchKOLs(currentPage, sortBy, filter);
         console.log('✅ KOL data refreshed');
+        
+        // Close modal on success
+        setShowPriceModal(false);
+        setSelectedKOLForPricing(null);
       } else {
         console.error('❌ Update failed:', result.error);
         toast.error(`Failed to update price: ${result.error || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('💥 Exception in handlePricingUpdate:', error);
+      console.error('💥 Exception in handlePriceSave:', error);
       toast.error('Failed to update price. Please try again.');
     } finally {
-      console.log('🔄 Setting loading state to false');
-      setLoading(false);
+      setIsPriceUpdating(false);
     }
+  };
+
+  // Handle close price modal
+  const handleClosePriceModal = () => {
+    setShowPriceModal(false);
+    setSelectedKOLForPricing(null);
   };
 
   // Load KOLs on component mount
@@ -1133,6 +1138,16 @@ const TimeMarketplace: React.FC = () => {
         onClose={() => setShowKOLModal(false)}
         walletAddress={walletAddress || ''}
         onSubmit={handleKOLRegistration}
+      />
+
+      {/* Price Setting Modal */}
+      <SetPriceModal
+        isOpen={showPriceModal}
+        onClose={handleClosePriceModal}
+        onSave={handlePriceSave}
+        currentPrice={selectedKOLForPricing?.currentPrice || 0}
+        kolId={selectedKOLForPricing?.id || ''}
+        isLoading={isPriceUpdating}
       />
     </div>
   );

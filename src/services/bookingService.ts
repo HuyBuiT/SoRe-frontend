@@ -47,7 +47,6 @@ export interface UpdateBookingStatusRequest {
 
 export interface KOLPricingUpdate {
   pricePerSlot?: number;
-  hourlyRate?: number;
   isAvailable?: boolean;
   minBookingDuration?: number;
   maxBookingDuration?: number;

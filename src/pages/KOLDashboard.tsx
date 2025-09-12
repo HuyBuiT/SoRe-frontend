@@ -54,7 +54,7 @@ const BookingCard: React.FC<{ booking: Booking; onStatusUpdate: (bookingId: numb
           >
             {booking.status.toUpperCase()}
           </span>
-          <span className="text-green-400 font-bold">${booking.price}</span>
+          <span className="text-green-400 font-bold">{booking.price} STT</span>
         </div>
       </div>
 
@@ -278,7 +278,7 @@ export const KOLDashboard: React.FC = () => {
               <div>
                 <p className="text-gray-400 text-sm">Potential Earnings</p>
                 <p className="text-3xl font-bold text-purple-400">
-                  ${acceptedBookings.reduce((sum, b) => sum + b.price, 0)}
+                  {acceptedBookings.reduce((sum, b) => sum + b.price, 0)} STT
                 </p>
               </div>
               <FaMoneyBillWave className="w-8 h-8 text-purple-400" />
