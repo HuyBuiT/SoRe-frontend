@@ -10,10 +10,7 @@ import {
   TrophyIcon,
   RocketLaunchIcon,
   LinkIcon,
-  ClockIcon,
-  UserGroupIcon,
-  StarIcon,
-  CheckCircleIcon
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import Navbar from '../components/Navbar';
 import XConnection from '../components/XConnection';
@@ -328,7 +325,7 @@ const AppPage: React.FC = () => {
                       description: "Sell consultation slots to your community",
                       gradient: "from-green-500 to-emerald-500"
                     }
-                  ].map((feature, index) => (
+                  ].map((feature) => (
                     <motion.div
                       key={feature.title}
                       whileHover={{ scale: 1.05, y: -5 }}

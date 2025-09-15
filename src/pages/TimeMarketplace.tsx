@@ -537,7 +537,7 @@ const TimeMarketplace: React.FC = () => {
       }
     } catch (error) {
       console.error('Error in KOL registration:', error);
-      toast.error('❌ Error: ' + (error.message || 'Unknown error occurred'));
+      toast.error('❌ Error: ' + ((error as Error).message || 'Unknown error occurred'));
     }
   }, [isConnected, walletAddress, currentPage, sortBy, filter, fetchKOLs]);
 

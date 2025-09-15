@@ -15,7 +15,7 @@ export const SetPriceModal: React.FC<SetPriceModalProps> = ({
   onClose,
   onSave,
   currentPrice,
-  kolId,
+  kolId: _kolId,
   isLoading = false
 }) => {
   const [price, setPrice] = useState(currentPrice.toString());

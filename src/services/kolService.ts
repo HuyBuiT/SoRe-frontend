@@ -327,7 +327,7 @@ export const kolService = {
   },
 
   // Initialize reputation NFT for a KOL
-  async initializeKOLReputation(walletAddress: string, isKOL: boolean = true): Promise<{ success: boolean; txHash?: string; tokenId?: number; error?: string }> {
+  async initializeKOLReputation(walletAddress: string, _isKOL: boolean = true): Promise<{ success: boolean; txHash?: string; tokenId?: number; error?: string }> {
     try {
       console.log('Initializing reputation for:', walletAddress);
       
@@ -360,7 +360,7 @@ export const kolService = {
       }
 
       console.log('Minting new reputation NFT...');
-      const tx = await reputationNFTContract.connect(signer).mintReputationNFT(walletAddress);
+      const tx = await (reputationNFTContract.connect(signer) as any).mintReputationNFT(walletAddress);
       console.log('Transaction sent:', tx.hash);
       
       const receipt = await tx.wait();
@@ -389,8 +389,8 @@ export const kolService = {
       };
     } catch (error) {
       console.error('Error initializing reputation NFT:', error);
-      console.error('Error details:', error.message || error);
-      return { success: false, error: error.message || 'Unknown error occurred' };
+      console.error('Error details:', (error as Error).message || error);
+      return { success: false, error: (error as Error).message || 'Unknown error occurred' };
     }
   },
 
@@ -560,7 +560,7 @@ export const kolService = {
     } catch (error) {
       console.error('💥 Error updating KOL pricing:', error);
       
-      if (error.name === 'AbortError') {
+      if ((error as Error).name === 'AbortError') {
         return { success: false, error: 'Request timeout - please try again' };
       }
       

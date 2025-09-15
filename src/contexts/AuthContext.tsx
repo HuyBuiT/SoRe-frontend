@@ -1,7 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ethers } from 'ethers';
 import { toast } from 'react-toastify';
 import { apiService, XStatus } from '../services/api';
+
+declare global {
+  interface Window {
+    ethereum?: {
+      isMetaMask?: boolean;
+      request: (args: { method: string; params?: any[] }) => Promise<any>;
+      on: (event: string, callback: (...args: any[]) => void) => void;
+      removeListener: (event: string, callback: (...args: any[]) => void) => void;
+      providers?: Array<{
+        isMetaMask?: boolean;
+        request: (args: { method: string; params?: any[] }) => Promise<any>;
+        on: (event: string, callback: (...args: any[]) => void) => void;
+        removeListener: (event: string, callback: (...args: any[]) => void) => void;
+        constructor: { name: string };
+      }>;
+      chainId?: string;
+      constructor?: { name: string };
+    };
+  }
+}
 
 interface AuthContextType {
   walletAddress: string | null;

@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
-import { FaBell, FaClock, FaMoneyBillWave, FaCheck, FaTimes, FaEye } from 'react-icons/fa';
+import { FaBell, FaClock, FaMoneyBillWave, FaCheck, FaTimes } from 'react-icons/fa';
 import { bookingService, Booking, UpdateBookingStatusRequest } from '../services/bookingService';
 import { kolService } from '../services/kolService';
 import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
 
 const BookingCard: React.FC<{ booking: Booking; onStatusUpdate: (bookingId: number, status: UpdateBookingStatusRequest) => void }> = ({ booking, onStatusUpdate }) => {
-  const [showDetails, setShowDetails] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
 

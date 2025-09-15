@@ -473,7 +473,7 @@ const LandingPage: React.FC = () => {
                 { number: "40%", label: "Social Metrics Weight", delay: 0.2 },
                 { number: "10%", label: "Holdings Weight", delay: 0.4 },
                 { number: "4", label: "Reputation Tiers", delay: 0.6 }
-              ].map((stat, index) => (
+              ].map((stat) => (
                 <motion.div
                   key={stat.label}
                   initial={{ opacity: 0, y: 20 }}
